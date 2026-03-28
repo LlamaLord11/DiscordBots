@@ -1,1 +1,1 @@
-A collection of Discord Bots Developed by LlamaLord11
+A Collection of Discord Bots Developed by LlamaLord11
