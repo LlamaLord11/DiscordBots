@@ -38,6 +38,8 @@ class SamrusEmbedBot(commands.Bot):
             print("-> Loaded cog: miscCommands")
             await self.load_extension("modal_testing")
             print("-> Loaded cog: modalTesting")
+            await self.load_extension("embed_builder")
+            print("-> Loaded cog: embedBuilder")
         except Exception as e:
             print(f"-> Failed to load Cogs\n{e}")
 
