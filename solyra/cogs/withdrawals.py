@@ -125,7 +125,7 @@ class WithdrawalsCog(commands.Cog, name="Withdrawals"):
             if row["account_id"] == 0:
                 continue
             avail = row["balance"] - row["reserved_cents"]
-            label = f"{row['account_name']} | Avail: ${avail / 100:.2f}"
+            label = f"{row['account_name']} ({format_account_id(row['account_id'])}) | Available: {cents_to_display(avail)}"
             value = str(row["account_id"])
             if current.lower() in label.lower() or current in value:
                 choices.append(app_commands.Choice(name=label[:100], value=value))
@@ -169,6 +169,21 @@ class WithdrawalsCog(commands.Cog, name="Withdrawals"):
             await assert_not_frozen(acc)
         except ValueError as exc:
             await interaction.followup.send(embed=E.error("Error", str(exc)), ephemeral=True)
+            return
+
+        # Pre-check available balance before creating the channel
+        available = acc["balance"] - acc["reserved_cents"]
+        if amount_cents > available:
+            avail_display = cents_to_display(available)
+            reserved_display = cents_to_display(acc["reserved_cents"])
+            total_display = cents_to_display(acc["balance"])
+            await interaction.followup.send(
+                embed=E.error(
+                    "Insufficient Available Balance",
+                    f"Available: {avail_display}\nReserved: {reserved_display}\nTotal: {total_display}",
+                ),
+                ephemeral=True,
+            )
             return
 
         # Always create ticket in the main guild regardless of where command was run
