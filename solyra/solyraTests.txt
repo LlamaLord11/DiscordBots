@@ -1,0 +1,210 @@
+SØLYRA CENTRAL BANK — BOT TEST PLAN
+=====================================
+
+
+SETUP — RUN THESE FIRST
+------------------------
+1.  Start the bot and confirm it comes online with no errors in the console
+2.  Confirm the voice channel tracker updates to: 🏦 Bank Total: $0.00
+3.  Confirm the audit log channel receives no unexpected alerts
+4.  Confirm solyra.db is created in the project directory
+
+
+ACCOUNT CREATION — /account create
+------------------------------------
+5.  Create an account as a regular member — confirm account name format is {ign} 00001
+6.  Create a second account with a different IGN — confirm ID is 00002
+7.  Try creating an account with an IGN under 3 characters — confirm error
+8.  Try creating an account with an IGN over 16 characters — confirm error
+9.  Try creating an account with special characters in IGN (e.g. Steve!) — confirm error
+10. Confirm house account 00000 exists in the DB:
+    SELECT * FROM accounts WHERE account_id = 0;
+
+
+BALANCE — /bal
+---------------
+11. Run /bal on your new account — confirm balance shows $0.00, available $0.00,
+    no reserved amount, status Active
+12. Confirm account 00000 does not appear in your autocomplete as a regular member
+
+
+DEPOSIT — /deposit
+-------------------
+13. Submit a deposit of 100 (whole integer) with a valid image — confirm ticket channel
+    created, Accounting pinged, embed shows $100.00
+14. Submit a deposit of 50.50 — confirm embed shows $50.50
+15. Try depositing 10.123 — confirm rejected before ticket is created
+16. Try attaching a .pdf file — confirm rejected before ticket is created
+17. Try attaching a .txt file — confirm rejected before ticket is created
+18. Try a .png file — confirm accepted
+19. Approve the $100.00 deposit as Accounting — confirm balance updates to $100.00,
+    ticket deleted, DM received by the depositor
+20. Deny the $50.50 deposit with a reason — confirm ticket deleted, DM received with reason
+21. Submit another deposit and hit Close — confirm ticket deleted, transaction remains
+    pending in DB, no DM sent
+22. Submit a deposit on a frozen account (freeze it first) — confirm error before ticket
+    is created
+23. Restart the bot with an open deposit ticket — confirm view re-attaches and buttons
+    still work
+
+
+WITHDRAWAL — /withdraw
+-----------------------
+24. Withdraw 50 from the $100.00 account — confirm ticket created, pending DM sent,
+    reserved shows $50.00 on /bal
+25. Try withdrawing 60 from the same account (only $50.00 available) — confirm
+    insufficient available balance error showing available, reserved, and total
+26. Complete the withdrawal as Accounting — confirm balance drops to $50.00, reserved
+    clears, completed DM sent with processed by
+27. Submit a withdrawal and Deny it — confirm reserved released, balance unchanged,
+    denial DM sent
+28. Submit a withdrawal, restart the bot, confirm view re-attaches, then complete it —
+    confirm balance deducts correctly
+29. Try withdrawing from a frozen account — confirm error
+30. Try withdrawing more than the total balance — confirm error
+
+
+TRANSFER — /transfer
+---------------------
+31. Create a second account on a different member, transfer $25.00 from account 1 to
+    account 2 — confirm both balances update immediately, destination account users
+    receive DM
+32. Try transferring more than available balance — confirm error
+33. Try transferring to yourself (same account as source and destination) — confirm error
+34. Try transferring to a frozen account — confirm error
+35. Try transferring from a frozen account — confirm error
+36. Transfer $0.01 (1 cent) — confirm works correctly and displays as $0.01
+
+
+BALANCE HISTORY — /balHistory
+------------------------------
+37. Run /balHistory on an account with several transactions — confirm all transaction
+    types appear (deposit, withdrawal, transfer), amounts display correctly, pending
+    transactions show with Pending label
+38. Run it on an account with no transactions in the last 30 days — confirm empty
+    state message
+39. Create more than 10 transactions and run /balHistory — confirm pagination appears
+    with Previous/Next buttons
+
+
+ACCOUNT USER MANAGEMENT
+------------------------
+40. As account owner, run /account adduser to add another Discord member — confirm DM
+    sent to added user, account appears in their autocomplete
+41. Try adding the same user again — confirm duplicate error
+42. Try running /account adduser as an authorized user (not owner) — confirm permission
+    error
+43. Run /account removeuser to remove the added user — confirm DM sent to removed user,
+    account removed from their autocomplete
+44. Try removing a user who isn't authorized — confirm error
+45. Try removing the owner — confirm error
+
+
+ACCOUNT CLOSURE — /account close
+----------------------------------
+46. Try closing an account with a balance — confirm error prompting to withdraw first
+47. Try closing an account with a pending withdrawal ticket (reserved > 0, balance = 0)
+    — confirm error about pending ticket
+48. Withdraw all funds, then close the account — confirm DMs sent to owner and all
+    authorized users, account removed from all autocompletes
+49. Try closing an account as an authorized user (not owner) — confirm error
+
+
+ADMIN — FREEZE / UNFREEZE
+--------------------------
+50. Freeze an account as Admin — confirm audit log channel post, frozen status shows
+    on /bal
+51. Try depositing, withdrawing, and transferring to/from a frozen account — confirm
+    all blocked
+52. Unfreeze the account — confirm audit log post, all commands work again
+53. Try freeze/unfreeze as Accounting role — confirm permission denied
+
+
+ADMIN — ADJUST
+---------------
+54. Adjust balance up by $10.00 on an account — confirm new balance, audit log post
+55. Adjust balance down by $5.00 — confirm new balance
+56. Try adjusting a balance that would go negative — confirm blocked with error
+57. Adjust a frozen account — confirm it works (admin can adjust frozen accounts)
+58. Confirm the VC tracker updates after an adjustment (within cooldown rules)
+
+
+ADMIN — AUDIT
+--------------
+59. Run /admin audit with filter All — confirm paginated results appear
+60. Run with filter By Account on a specific account ID — confirm only that account's
+    entries show
+61. Run with filter By Actor on your own user — confirm only your actions show
+62. Run with filter By Server using your server ID — confirm only entries from that
+    server show
+63. Confirm every action taken in the above tests appears in the audit log channel
+    in real time
+
+
+ADMIN — STATUS
+---------------
+64. Run /admin status — confirm it shows correct account count, bank total, pending
+    deposit/withdrawal counts, frozen account count, interest config, and uptime
+65. Confirm bank total includes house account balance (should be $0.00 at this point)
+
+
+INTEREST
+---------
+66. Run /account interest view as Admin — confirm general type shows at 0.00%,
+    never applied
+67. Run /account interest set general 2.00 — confirm rate updates to 2.00%,
+    audit log post
+68. Run /account interest apply general — confirm confirmation embed appears with
+    correct eligible account count and estimated total
+69. Cancel the confirmation — confirm no balances change
+70. Apply again and confirm — confirm all eligible account balances increase by 2%,
+    house account receives any remainder, audit log post, /balHistory shows interest
+    transactions
+71. Run /account interest apply general on accounts all with $0.00 balance — confirm
+    skipped with error
+72. Run /admin interest pause — confirm scheduler paused, audit log post
+73. Run /admin interest resume — confirm resumed, audit log post
+74. Run /admin interest forceapply general — confirm confirmation flow works outside
+    schedule
+
+
+INTEREST SCHEDULER — MISSED PAYMENT
+-------------------------------------
+75. Set INTEREST_DAY and INTEREST_TIME in config.py to a time that has already passed
+    this week, set last_applied to NULL in the DB, restart the bot — confirm missed
+    payment alert appears in audit log channel with Apply button
+76. Press the Apply button on the alert — confirm interest applies correctly
+
+
+VC TRACKER COOLDOWN
+--------------------
+77. Complete two transactions in rapid succession — confirm the tracker updates
+    immediately on the first, and the second update fires after the cooldown expires
+    (set VC_COOLDOWN_MINUTES = 1 in config for faster testing)
+
+
+BACKUP
+-------
+78. Set BACKUP_INTERVAL_HOURS = 0.01 in config (about 36 seconds), wait — confirm a
+    backup file appears in backups/ with correct timestamp filename format
+79. Confirm old backups rotate once count exceeds BACKUP_RETENTION_COUNT
+
+
+SECONDARY SERVER
+-----------------
+80. Add the bot to a second Discord server — confirm /deposit is not available
+81. Confirm /bal, /balHistory, /transfer, /account create/adduser/removeuser/close,
+    and /withdraw all work
+82. Confirm /admin commands are not available
+83. Run /transfer on the secondary server — confirm destination autocomplete is
+    server-scoped
+
+
+EDGE CASES
+-----------
+84. Try running any command in DMs — confirm appropriate behaviour
+85. Have two staff members press Approve on the same deposit ticket simultaneously —
+    confirm only one processes, second gets silently rejected (idempotency guard)
+86. Manually delete a ticket channel while the bot is running, then trigger crash
+    recovery by restarting — confirm transaction is marked orphaned and alert posted
+    to audit log channel
