@@ -1,1 +1,5 @@
 .env
+solyra.db
+solyra.db-shm
+solyra.db-wal
+solyra.log

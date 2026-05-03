@@ -51,17 +51,17 @@ DEPOSIT — /deposit
 WITHDRAWAL — /withdraw
 -----------------------
 24. Withdraw 50 from the $100.00 account — confirm ticket created, pending DM sent,
-    reserved shows $50.00 on /bal
+    reserved shows $50.00 on /bal - Passed
 25. Try withdrawing 60 from the same account (only $50.00 available) — confirm
-    insufficient available balance error showing available, reserved, and total
+    insufficient available balance error showing available, reserved, and total - Error properly thrown, but a withdrawl channel temporarily appears then dissapears immediately
 26. Complete the withdrawal as Accounting — confirm balance drops to $50.00, reserved
-    clears, completed DM sent with processed by
+    clears, completed DM sent with processed by - Passed
 27. Submit a withdrawal and Deny it — confirm reserved released, balance unchanged,
-    denial DM sent
+    denial DM sent - Passed
 28. Submit a withdrawal, restart the bot, confirm view re-attaches, then complete it —
-    confirm balance deducts correctly
-29. Try withdrawing from a frozen account — confirm error
-30. Try withdrawing more than the total balance — confirm error
+    confirm balance deducts correctly - Passed
+29. Try withdrawing from a frozen account — confirm error - Passed
+30. Try withdrawing more than the total balance — confirm error - Passed
 
 
 TRANSFER — /transfer
