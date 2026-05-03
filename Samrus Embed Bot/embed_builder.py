@@ -12,21 +12,21 @@ class embed_builder(commands.Cog):
     @app_commands.command(name='build_embed', description='Build an Embed')
     @app_commands.guilds(discord.Object(id=serverID))
     async def embed_builder_start(self, interaction: discord.Interaction):
-        EmbedBuilder = self.embedBuilder(initialModal=self.initialModal)
+        EmbedBuilder = self.EmbedBuilder(InitialModal=self.InitialModal, FieldModal=self.FieldModal, EmbedButtons=self.EmbedBuilderButtons)
         await interaction.response.send_message('Select a Color for your Embed', view=self.ColorSelectorView(embed_builder=EmbedBuilder), ephemeral=True)
 
     
-    class embedBuilder():
-        def __init__(self, initialModal):
-            self.initialModal = initialModal
+    class EmbedBuilder():
+        def __init__(self, InitialModal, FieldModal, EmbedButtons):
+            self.InitialModal = InitialModal
+            self.FieldModal = FieldModal
+            self.EmbedButtons = EmbedButtons
             self.color = None
             self.title = ''
             self.description = ''
             self.author = ''
             self.footer = ''
-
-        def testPrint(self):
-            return f"Title: {self.title} | Description: {self.description} | Author: {self.author} | Footer: {self.footer} | Color: {self.color}"
+            self.fields = []
 
         def setColor(self, color: discord.Color):
             self.color = color
@@ -36,6 +36,27 @@ class embed_builder(commands.Cog):
             self.description=description
             self.author=author
             self.footer=footer
+
+        def fieldModalFeedback(self, field):
+            self.fields.append(field)
+
+        def deleteLastField(self):
+            self.fields.pop()
+
+        def getEmbed(self) -> discord.Embed:
+            embed = discord.Embed(
+                title=self.title,
+                description=self.description,
+                color=self.color,
+            )
+            if self.author: embed.set_author(name=self.author)
+            if self.footer: embed.set_footer(text=self.footer)
+
+            if len(self.fields) > 0:
+                for currentField in self.fields:
+                    embed.add_field(name=currentField.title, value=currentField.description)
+
+            return embed
 
     class ColorSelectorView(discord.ui.View):
         def __init__(self, *, timeout = 180, embed_builder):
@@ -103,50 +124,123 @@ class embed_builder(commands.Cog):
 
             async def callback(self, interaction: discord.Interaction):
                 self.embed_builder.setColor(self.COLOR_MAP[self.values[0]])
-                await interaction.response.send_modal(self.embed_builder.initialModal(embed_builder=self.embed_builder))
+                await interaction.response.send_modal(self.embed_builder.InitialModal(embed_builder=self.embed_builder))
 
-    class initialModal(discord.ui.Modal, title='Embed Builder'):
+    class InitialModal(discord.ui.Modal, title='Embed Builder'):
+        def __init__(self, embed_builder, editing=False):
+            super().__init__()
+            self.embed_builder = embed_builder
+            self.editing=editing
+            
+            self.embedTitle = discord.ui.TextInput(
+                label = 'Embed Title',
+                style = discord.TextStyle.short,
+                placeholder = '(Optional) Enter the Embed Title here...',
+                required = False,
+                max_length = 256,
+                default=self.embed_builder.title if editing else None,
+            )
+
+            self.embedDescription = discord.ui.TextInput(
+                label = 'Embed Body',
+                style = discord.TextStyle.long,
+                placeholder = '(Optional) Enter the Embed Body here...',
+                required = False,
+                max_length = 4000,
+                default=self.embed_builder.description if editing else None,
+            )
+
+            self.embedAuthor = discord.ui.TextInput(
+                label = 'Embed Author',
+                style = discord.TextStyle.short,
+                placeholder = '(Optional) Enter the Embed Author here...',
+                required = False,
+                max_length = 256,
+                default=self.embed_builder.author if editing else None,
+            )
+
+            self.embedFooter = discord.ui.TextInput(
+                label = 'Embed Footer',
+                style = discord.TextStyle.long,
+                placeholder = '(Optional) Enter the Embed Footer here...',
+                required = False,
+                max_length = 2048,
+                default=self.embed_builder.footer if editing else None,
+            )
+        
+            self.add_item(self.embedTitle)
+            self.add_item(self.embedDescription)
+            self.add_item(self.embedAuthor)
+            self.add_item(self.embedFooter)
+
+        async def on_submit(self, interaction: discord.Interaction):
+            self.embed_builder.initialModalFeedback(self.embedTitle.value, self.embedDescription.value, self.embedAuthor.value, self.embedFooter.value)
+
+            if self.editing:
+                await interaction.response.edit_message(embed=self.embed_builder.getEmbed(), view=self.embed_builder.EmbedButtons(embed_builder=self.embed_builder))
+            else:
+                await interaction.response.send_message(embed=self.embed_builder.getEmbed(), view=self.embed_builder.EmbedButtons(embed_builder=self.embed_builder), ephemeral=True)
+
+    class FieldModal(discord.ui.Modal, title='Field Builder'):
         def __init__(self, embed_builder):
             super().__init__()
             self.embed_builder = embed_builder
 
-        embedTitle = discord.ui.TextInput(
-            label = 'Embed Title',
+        fieldTitle = discord.ui.TextInput(
+            label = 'Field Title',
             style = discord.TextStyle.short,
-            placeholder = '(Optional) Enter the Embed Title here...',
+            placeholder = '(Optional) Enter the Field Title here...',
             required = False,
             max_length = 256,
         )
 
-        embedDescription = discord.ui.TextInput(
-            label = 'Embed Body',
+        fieldDescription = discord.ui.TextInput(
+            label = 'Field Body',
             style = discord.TextStyle.long,
-            placeholder = '(Optional) Enter the Embed Body here...',
+            placeholder = '(Optional) Enter the Field Body here...',
             required = False,
-            max_length = 4000,
+            max_length = 1024,
         )
 
-        embedAuthor = discord.ui.TextInput(
-            label = 'Embed Author',
-            style = discord.TextStyle.short,
-            placeholder = '(Optional) Enter the Embed Author here...',
-            required = False,
-            max_length = 256,
-        )
-
-        embedFooter = discord.ui.TextInput(
-            label = 'Embed Footer',
-            style = discord.TextStyle.long,
-            placeholder = '(Optional) Enter the Embed Footer here...',
-            required = False,
-            max_length = 2048,
-        )
-
-        async def on_submit(self, interaction: discord.Interaction):
-            self.embed_builder.initialModalFeedback(self.embedTitle.value, self.embedDescription.value, self.embedAuthor.value, self.embedFooter.value)
-            await interaction.response.send_message(content=self.embed_builder.testPrint(), ephemeral=True)
-
+        class Field():
+            def __init__(self, title="", description=""):
+                self.title=title
+                self.description=description
             
+        async def on_submit(self, interaction: discord.Interaction):
+            field = self.Field(self.fieldTitle.value, self.fieldDescription.value)
+            self.embed_builder.fieldModalFeedback(field)
+            await interaction.response.edit_message(embed=self.embed_builder.getEmbed(), view=self.embed_builder.EmbedButtons(embed_builder=self.embed_builder))
+
+    class EmbedBuilderButtons(discord.ui.View):
+        def __init__(self, *, timeout = None, embed_builder):
+            super().__init__(timeout=timeout)
+            self.embed_builder=embed_builder
+
+        @discord.ui.button(label="Edit Embed", style=discord.ButtonStyle.blurple)
+        async def edit_embed(self, interaction:discord.Interaction, button:discord.ui.Button):
+            await interaction.response.send_modal(self.embed_builder.InitialModal(embed_builder=self.embed_builder, editing=True))
+
+        @discord.ui.button(label="Add Field", style=discord.ButtonStyle.blurple)
+        async def add_field(self, interaction:discord.Interaction, button:discord.ui.Button):
+            await interaction.response.send_modal(self.embed_builder.FieldModal(embed_builder=self.embed_builder))
+
+        @discord.ui.button(label="Delete Last Field", style=discord.ButtonStyle.red)
+        async def delete_last_field(self, interaction:discord.Interaction, button:discord.ui.Button):
+            if len(self.embed_builder.fields) > 0:
+                self.embed_builder.deleteLastField()
+                await interaction.response.edit_message(embed=self.embed_builder.getEmbed(), view=self.embed_builder.EmbedButtons(embed_builder=self.embed_builder))
+            else:
+                await interaction.response.send_message("No Fields to Delete", ephemeral=True)
+
+        @discord.ui.button(label="Delete Embed", style=discord.ButtonStyle.red)
+        async def delete_embed(self, interaction:discord.Interaction, button:discord.ui.Button):
+            await interaction.response.edit_message(content="Embed Creation Stopped", embed=None, view=None)
+
+        @discord.ui.button(label="Create Embed", style=discord.ButtonStyle.green)
+        async def create_embed(self, interaction:discord.Interaction, button:discord.ui.Button):
+            await interaction.response.edit_message(content="Embed Creation Completed", embed=None, view=None)
+            await interaction.followup.send(embed=self.embed_builder.getEmbed())
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(embed_builder(bot))
