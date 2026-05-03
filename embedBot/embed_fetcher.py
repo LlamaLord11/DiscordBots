@@ -3,7 +3,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 
-from embedLibrary import EmbedLibrary
+from embedBot.embedLibrary import EmbedLibrary
 
 serverID = int(os.getenv("CURRENT_SERVER_ID"))
 

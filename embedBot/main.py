@@ -5,6 +5,8 @@ from discord import app_commands
 from discord.ext import commands
 from dotenv import load_dotenv
 
+# Run Command: python -m embedBot.main
+
 sys.dont_write_bytecode = True
 load_dotenv()
 
@@ -32,16 +34,21 @@ class SamrusEmbedBot(commands.Bot):
 
     async def cogLoader(self):
         try:
-            await self.load_extension("embed_fetcher")
+            await self.load_extension("embedBot.embed_fetcher")
             print("-> Loaded cog: embedFetcher")
-            await self.load_extension("misc_commands")
+            await self.load_extension("embedBot.misc_commands")
             print("-> Loaded cog: miscCommands")
-            await self.load_extension("modal_testing")
+            await self.load_extension("embedBot.modal_testing")
             print("-> Loaded cog: modalTesting")
-            await self.load_extension("embed_builder")
+            await self.load_extension("embedBot.embed_builder")
             print("-> Loaded cog: embedBuilder")
         except Exception as e:
             print(f"-> Failed to load Cogs\n{e}")
 
-bot = SamrusEmbedBot()
-bot.run(CLIENT_TOKEN)
+def main() -> None:
+    bot = SamrusEmbedBot()
+    bot.run(CLIENT_TOKEN, log_handler=None)
+
+
+if __name__ == "__main__":
+    main()
