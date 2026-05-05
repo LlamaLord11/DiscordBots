@@ -12,15 +12,16 @@ class embed_builder(commands.Cog):
     @app_commands.command(name='build_embed', description='Build an Embed')
     @app_commands.guilds(discord.Object(id=serverID))
     async def embed_builder_start(self, interaction: discord.Interaction):
-        EmbedBuilder = self.EmbedBuilder(InitialModal=self.InitialModal, FieldModal=self.FieldModal, EmbedButtons=self.EmbedBuilderButtons)
+        EmbedBuilder = self.EmbedBuilder(InitialModal=self.InitialModal, FieldModal=self.FieldModal, EmbedButtons=self.EmbedBuilderButtons, ColorSelector=self.ColorSelectorView)
         await interaction.response.send_message('Select a Color for your Embed', view=self.ColorSelectorView(embed_builder=EmbedBuilder), ephemeral=True)
 
     
     class EmbedBuilder():
-        def __init__(self, InitialModal, FieldModal, EmbedButtons):
+        def __init__(self, InitialModal, FieldModal, EmbedButtons, ColorSelector):
             self.InitialModal = InitialModal
             self.FieldModal = FieldModal
             self.EmbedButtons = EmbedButtons
+            self.ColorSelector = ColorSelector
             self.color = None
             self.title = ''
             self.description = ''
@@ -43,6 +44,22 @@ class embed_builder(commands.Cog):
         def deleteLastField(self):
             self.fields.pop()
 
+        def getEmbedLength(self):
+            charCount = 0
+            charCount += len(self.title)
+            charCount += len(self.description)
+            charCount += len(self.author)
+            charCount += len(self.footer)
+
+            for currentField in self.fields:
+                charCount += len(currentField.title)
+                charCount += len(currentField.description)
+
+            return charCount
+        
+        def getFieldCount(self):
+            return len(self.fields)
+
         def getEmbed(self) -> discord.Embed:
             embed = discord.Embed(
                 title=self.title,
@@ -54,15 +71,15 @@ class embed_builder(commands.Cog):
 
             if len(self.fields) > 0:
                 for currentField in self.fields:
-                    embed.add_field(name=currentField.title, value=currentField.description)
+                    embed.add_field(name=currentField.title, value=currentField.description, inline=False)
 
             return embed
 
     class ColorSelectorView(discord.ui.View):
-        def __init__(self, *, timeout = 180, embed_builder):
+        def __init__(self, *, timeout = 180, embed_builder, editing=False):
             self.embed_builder = embed_builder
             super().__init__(timeout=timeout)
-            self.add_item(self.ColorSelections(embed_builder=self.embed_builder))
+            self.add_item(self.ColorSelections(embed_builder=self.embed_builder, editing=editing))
 
         class ColorSelections(discord.ui.Select):
 
@@ -92,7 +109,8 @@ class embed_builder(commands.Cog):
                 "black":            discord.Color.default(),
             }
 
-            def __init__(self, embed_builder):
+            def __init__(self, embed_builder, editing):
+                self.editing = editing
                 self.embed_builder = embed_builder
                 options = [
                     discord.SelectOption(label="Teal", value='teal'),
@@ -124,7 +142,17 @@ class embed_builder(commands.Cog):
 
             async def callback(self, interaction: discord.Interaction):
                 self.embed_builder.setColor(self.COLOR_MAP[self.values[0]])
-                await interaction.response.send_modal(self.embed_builder.InitialModal(embed_builder=self.embed_builder))
+                selected_label = next(opt.label for opt in self.options if opt.value == self.values[0])
+
+                if not self.editing:
+                    await interaction.response.send_modal(self.embed_builder.InitialModal(embed_builder=self.embed_builder))
+                    await interaction.edit_original_response(content=f"Selected Color: {selected_label}", view=None)
+                else:
+                    await interaction.response.edit_message(
+                        content=f"{self.embed_builder.getEmbedLength()} of maximum 6,000 Characters | {self.embed_builder.getFieldCount()} of maximum 25 Fields",
+                        embed=self.embed_builder.getEmbed(),
+                        view=self.embed_builder.EmbedButtons(embed_builder=self.embed_builder)
+                    )
 
     class InitialModal(discord.ui.Modal, title='Embed Builder'):
         def __init__(self, embed_builder, editing=False):
@@ -132,6 +160,15 @@ class embed_builder(commands.Cog):
             self.embed_builder = embed_builder
             self.editing=editing
             
+            self.embedAuthor = discord.ui.TextInput(
+                label = 'Embed Author',
+                style = discord.TextStyle.short,
+                placeholder = '(Optional) Enter the Embed Author here...',
+                required = False,
+                max_length = 256,
+                default=self.embed_builder.author if editing else None,
+            )
+
             self.embedTitle = discord.ui.TextInput(
                 label = 'Embed Title',
                 style = discord.TextStyle.short,
@@ -150,15 +187,6 @@ class embed_builder(commands.Cog):
                 default=self.embed_builder.description if editing else None,
             )
 
-            self.embedAuthor = discord.ui.TextInput(
-                label = 'Embed Author',
-                style = discord.TextStyle.short,
-                placeholder = '(Optional) Enter the Embed Author here...',
-                required = False,
-                max_length = 256,
-                default=self.embed_builder.author if editing else None,
-            )
-
             self.embedFooter = discord.ui.TextInput(
                 label = 'Embed Footer',
                 style = discord.TextStyle.long,
@@ -168,18 +196,30 @@ class embed_builder(commands.Cog):
                 default=self.embed_builder.footer if editing else None,
             )
         
+            self.add_item(self.embedAuthor)
             self.add_item(self.embedTitle)
             self.add_item(self.embedDescription)
-            self.add_item(self.embedAuthor)
             self.add_item(self.embedFooter)
 
         async def on_submit(self, interaction: discord.Interaction):
-            self.embed_builder.initialModalFeedback(self.embedTitle.value, self.embedDescription.value, self.embedAuthor.value, self.embedFooter.value)
 
+            potentialLength = (
+                len(self.embedTitle.value) +
+                len(self.embedDescription.value) +
+                len(self.embedAuthor.value) +
+                len(self.embedFooter.value) +
+                sum(len(f.title) + len(f.description) for f in self.embed_builder.fields)
+            )
+
+            if potentialLength > 6000:
+                await interaction.response.send_message(content="Character limit reached. Embed total can't exceed 6,000 characters.", ephemeral=True)
+                return
+            
+            self.embed_builder.initialModalFeedback(self.embedTitle.value, self.embedDescription.value, self.embedAuthor.value, self.embedFooter.value)
             if self.editing:
-                await interaction.response.edit_message(embed=self.embed_builder.getEmbed(), view=self.embed_builder.EmbedButtons(embed_builder=self.embed_builder))
+                await interaction.response.edit_message(content=f"{self.embed_builder.getEmbedLength()} of maximum 6,000 Characters | {self.embed_builder.getFieldCount()} of maximum 25 Fields", embed=self.embed_builder.getEmbed(), view=self.embed_builder.EmbedButtons(embed_builder=self.embed_builder))
             else:
-                await interaction.response.send_message(embed=self.embed_builder.getEmbed(), view=self.embed_builder.EmbedButtons(embed_builder=self.embed_builder), ephemeral=True)
+                await interaction.response.send_message(content=f"{self.embed_builder.getEmbedLength()} of maximum 6,000 Characters | {self.embed_builder.getFieldCount()} of maximum 25 Fields", embed=self.embed_builder.getEmbed(), view=self.embed_builder.EmbedButtons(embed_builder=self.embed_builder), ephemeral=True)
 
     class FieldModal(discord.ui.Modal, title='Field Builder'):
         def __init__(self, embed_builder):
@@ -210,7 +250,15 @@ class embed_builder(commands.Cog):
         async def on_submit(self, interaction: discord.Interaction):
             field = self.Field(self.fieldTitle.value, self.fieldDescription.value)
             self.embed_builder.fieldModalFeedback(field)
-            await interaction.response.edit_message(embed=self.embed_builder.getEmbed(), view=self.embed_builder.EmbedButtons(embed_builder=self.embed_builder))
+
+            if self.embed_builder.getEmbedLength() > 6000:
+                self.embed_builder.deleteLastField()
+                await interaction.response.send_message(content="Character limit reached. Embed total can't exceed 6,000 characters.", ephemeral=True)
+            elif self.embed_builder.getFieldCount() > 25:
+                self.embed_builder.deleteLastField()
+                await interaction.response.send_message(content="Field limit reached. Field count can't exceed 25", ephemeral=True)
+            else:
+                await interaction.response.edit_message(content=f"{self.embed_builder.getEmbedLength()} of maximum 6,000 Characters | {self.embed_builder.getFieldCount()} of maximum 25 Fields", embed=self.embed_builder.getEmbed(), view=self.embed_builder.EmbedButtons(embed_builder=self.embed_builder))
 
     class EmbedBuilderButtons(discord.ui.View):
         def __init__(self, *, timeout = None, embed_builder):
@@ -221,6 +269,10 @@ class embed_builder(commands.Cog):
         async def edit_embed(self, interaction:discord.Interaction, button:discord.ui.Button):
             await interaction.response.send_modal(self.embed_builder.InitialModal(embed_builder=self.embed_builder, editing=True))
 
+        @discord.ui.button(label="Change Color", style=discord.ButtonStyle.blurple)
+        async def change_color(self, interaction:discord.Interaction, button:discord.ui.Button):
+            await interaction.response.edit_message(content='Select a new color:', view=self.embed_builder.ColorSelector(embed_builder=self.embed_builder, editing=True), embed=None)
+
         @discord.ui.button(label="Add Field", style=discord.ButtonStyle.blurple)
         async def add_field(self, interaction:discord.Interaction, button:discord.ui.Button):
             await interaction.response.send_modal(self.embed_builder.FieldModal(embed_builder=self.embed_builder))
@@ -229,7 +281,7 @@ class embed_builder(commands.Cog):
         async def delete_last_field(self, interaction:discord.Interaction, button:discord.ui.Button):
             if len(self.embed_builder.fields) > 0:
                 self.embed_builder.deleteLastField()
-                await interaction.response.edit_message(embed=self.embed_builder.getEmbed(), view=self.embed_builder.EmbedButtons(embed_builder=self.embed_builder))
+                await interaction.response.edit_message(content=f"{self.embed_builder.getEmbedLength()} of maximum 6,000 Characters | {self.embed_builder.getFieldCount()} of maximum 25 Fields", embed=self.embed_builder.getEmbed(), view=self.embed_builder.EmbedButtons(embed_builder=self.embed_builder))
             else:
                 await interaction.response.send_message("No Fields to Delete", ephemeral=True)
 
@@ -240,7 +292,7 @@ class embed_builder(commands.Cog):
         @discord.ui.button(label="Create Embed", style=discord.ButtonStyle.green)
         async def create_embed(self, interaction:discord.Interaction, button:discord.ui.Button):
             await interaction.response.edit_message(content="Embed Creation Completed", embed=None, view=None)
-            await interaction.followup.send(embed=self.embed_builder.getEmbed())
+            await interaction.channel.send(embed=self.embed_builder.getEmbed())
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(embed_builder(bot))
