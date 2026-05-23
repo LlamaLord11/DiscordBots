@@ -211,3 +211,21 @@ async def remove_authorized_user(db: Database, account_id: int, user_id: int) ->
         "DELETE FROM account_users WHERE account_id = ? AND user_id = ?",
         (account_id, user_id),
     )
+
+
+async def get_all_accounts_for_report(db: Database) -> list:
+    """Return all accounts with their authorized user IDs for report generation."""
+    accounts = await db.fetchall(
+        "SELECT * FROM accounts ORDER BY account_id",
+    )
+    result = []
+    for acc in accounts:
+        auth_users = await db.fetchall(
+            "SELECT user_id FROM account_users WHERE account_id = ?",
+            (acc["account_id"],),
+        )
+        result.append({
+            "account": acc,
+            "authorized_user_ids": [row["user_id"] for row in auth_users],
+        })
+    return result
